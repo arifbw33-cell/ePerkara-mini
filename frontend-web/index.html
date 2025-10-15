@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ePerkara Mini</title>
+    <script src="./library/tailwind.js"></script>
+    <script src="./library/vue.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <link href="./library/tabulator-master/dist/css/tabulator.min.css" rel="stylesheet">
+    <script src="./library/tabulator-master/dist/js/tabulator.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- Simulasi Page Login -->
+        <div v-if="!isLoggedIn" class="min-h-screen flex items-center justify-center bg-gray-100">
+            <div class="bg-white p-8 rounded-lg shadow-md w-96">
+                <h2 class="text-2xl font-bold mb-6 text-center">Login ePerkara</h2>
+                <form @submit.prevent="handleLogin">
+                    <div class="mb-4">
+                        <label class="block text-gray-700 mb-2">Username</label>
+                        <input placeholder="Masukan Username ..." v-model="loginForm.username"
+                            class="w-full px-3 py-2 border rounded-lg" required>
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-gray-700 mb-2">Password</label>
+                        <input placeholder="Masukan Password ..." v-model="loginForm.password" type="password"
+                            class="w-full px-3 py-2 border rounded-lg" required>
+                    </div>
+                    <button type="submit" class="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600">
+                        Login
+                    </button>
+                    <p v-if="loginError" class="mt-4 text-red-500 text-sm text-center">{{ loginError }}</p>
+                </form>
+            </div>
+        </div>
+
+        <!-- Simulasi Page Aplikasi -->
+        <div v-else class="min-h-screen flex flex-col">
+            <!-- Top Header -->
+            <header style="background-color: #132337;"
+                class="text-white py-2 px-6 flex justify-between items-center shadow">
+                <img src="./logo.png" alt="logo" style="width: 250px;">
+                <!-- <h1 class="text-xl font-semibold tracking-wide" style="font-size:  30px;">e-Perkara Mini</h1> -->
+                <div class="flex space-x-10 text-right text-xl">
+                    <div>
+                        <div class="text-gray-400 uppercase text-xs">Total Kasus</div>
+                        <div class="text-orange-400 font-semibold">{{ perkaraStats.totalKasus }}</div>
+                    </div>
+                    <div>
+                        <div class="text-gray-400 uppercase text-xs">Kasus Aktif</div>
+                        <div>{{ perkaraStats.kasusAktif }}</div>
+                    </div>
+                    <div>
+                        <div class="text-gray-400 uppercase text-xs">Kasus Selesai</div>
+                        <div>{{ perkaraStats.kasusSelesai }}</div>
+                    </div>
+                    <div>
+                        <div class="text-gray-400 uppercase text-xs">Persentase Selesai</div>
+                        <div>{{ perkaraStats.persentasePenyelesaian }}</div>
+                    </div>
+
+                    <div>
+
+                        <button @click="logout" class="bg-red-500 text-white px-4 py-2 rounded">Logout</button>
+                    </div>
+                </div>
+            </header>
+            <!-- Main Body -->
+            <div class="flex flex-1">
+                <!-- Sidebar -->
+                <aside class="w-64 bg-gray-100 border-r">
+                    <nav class="mt-4">
+                        <div v-for="item in menu" :key="item.id" @click="currentView = item.id" class="sidebar-item"
+                            :class="{ active: currentView === item.id }">
+                            <span> {{ item.label }}</span>
+                        </div>
+                    </nav>
+                </aside>
+                <!-- Content Area -->
+                <main class="flex-1 bg-white p-8 overflow-y-auto">
+                    <div v-if="currentView === 'pegawai'">
+                        <h2 class="text-2xl font-semibold text-gray-700 mb-4">
+                            Kelola Pegawai
+                        </h2>
+                        <!-- CRUD Buttons -->
+                        <div class="mb-4 flex justify-between gap-5 align-center">
+                            <div style="flex: 1;">
+                                <input v-model="searchQuery" style="width: 100%; height: 100%;"
+                                    placeholder="Cari data disini ..." class="border px-2 py-3" />
+                            </div>
+                            <div class="flex gap-2">
+                                <button v-if="!selectedRow" @click="showAddModal"
+                                    class="bg-blue-500 text-white px-4 py-2 rounded">Tambah Data</button>
+                                <button v-if="selectedRow" @click="editSelected"
+                                    class="bg-yellow-500 text-white px-4 py-2 rounded">Edit Dipilih</button>
+                                <button v-if="selectedRow" @click="deleteSelected"
+                                    class="bg-red-500 text-white px-4 py-2 rounded">Hapus Dipilih</button>
+                            </div>
+                        </div>
+
+                        <div id="{{currentView}}-table"></div>
+                        <!-- Add/Edit Modal -->
+                        <div v-if="modalVisible"
+                            class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+                            <div class="bg-white p-6 rounded shadow w-96">
+                                <h3 class="text-lg font-bold mb-2">{{ modalMode === 'add' ? 'Tambah' : 'Ubah' }} Pegawai
+                                </h3>
+                                <form @submit.prevent="submitModal">
+                                    <div class="mb-2">
+                                        <label>Nama:</label>
+                                        <input placeholder="Masukan Nama ..." v-model="modalData.name" class="border px-2 py-1 w-full" required />
+                                    </div>
+                                    <div class="mb-2">
+                                        <label>Umur:</label>
+                                        <input placeholder="Masukan umur ..." v-model.number="modalData.age" type="number"
+                                            class="border px-2 py-1 w-full" required />
+                                    </div>
+                                    <div class="mb-2">
+                                        <label>Gender:</label>
+                                        <select v-model="modalData.gender" class="border px-2 py-1 w-full">
+                                            <option selected disabled>Pilih Jenis Kelamin</option>
+                                            <option>Male</option>
+                                            <option>Female</option>
+                                        </select>
+                                    </div>
+                                    <div class="flex gap-2 mt-4">
+                                        <button type="submit"
+                                            class="bg-blue-500 text-white px-4 py-2 rounded">Simpan</button>
+                                        <button type="button" @click="modalVisible=false"
+                                            class="bg-gray-300 px-4 py-2 rounded">Batalkan</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-if="currentView === 'perkara'">
+                        <h2 class="text-2xl font-semibold text-gray-700 mb-4">Kelola Perkara</h2>
+                        <div class="mb-4 flex justify-between gap-5 align-center">
+                            <div style="flex: 1;">
+                                <input v-model="searchQuery" style="width: 100%; height: 100%;"
+                                    placeholder="Cari data disini ..." class="border px-2 py-3" />
+                            </div>
+                            <div class="flex gap-2">
+                                <button v-if="!selectedRow" @click="showAddModal"
+                                    class="bg-blue-500 text-white px-4 py-2 rounded">Tambah Data</button>
+                                <button v-if="selectedRow" @click="editSelected"
+                                    class="bg-yellow-500 text-white px-4 py-2 rounded">Edit Dipilih</button>
+                                <button v-if="selectedRow" @click="deleteSelected"
+                                    class="bg-red-500 text-white px-4 py-2 rounded">Hapus Dipilih</button>
+                            </div>
+                        </div>
+                        <div id="{{currentView}}-table"></div>
+                        <div v-if="modalVisible"
+                            class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+                            <div class="bg-white p-6 rounded shadow w-96">
+                                <h3 class="text-lg font-bold mb-2">{{ modalMode === 'add' ? 'Add' : 'Edit' }} Perkara
+                                </h3>
+                                <form @submit.prevent="submitModal">
+                                    <div class="mb-2">
+                                        <label>Judul:</label>
+                                        <input placeholder="Masukan Judul ..." v-model="modalData.judul" class="border px-2 py-1 w-full" required />
+                                    </div>
+                                    <div class="mb-2">
+                                        <label>Tanggal:</label>
+                                        <input placeholder="Pilih tanggal ..." v-model="modalData.tanggal" type="date" class="border px-2 py-1 w-full"
+                                            required />
+                                    </div>
+                                    <div class="mb-2">
+                                        <label>Status:</label>
+                                        <select v-model="modalData.status" class="border px-2 py-1 w-full">
+                                            <option selected disabled>Pilih Status Perkara :</option>
+                                            <option>aktif</option>
+                                            <option>selesai</option>
+                                        </select>
+                                    </div>
+                                    <div class="flex gap-2 mt-4">
+                                        <button type="submit"
+                                            class="bg-blue-500 text-white px-4 py-2 rounded">Simpan</button>
+                                        <button type="button" @click="modalVisible=false"
+                                            class="bg-gray-300 px-4 py-2 rounded">Batalkan</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div v-if="currentView === 'laporan'">
+                        <h2 class="text-2xl font-semibold text-gray-700 mb-4">Laporan</h2>
+                        <p class="text-gray-600">Menu Laporan belum di implementasi, mohon dibuat mandiri service nya.</p>
+                    </div>
+                </main>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
